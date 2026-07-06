@@ -1,0 +1,1543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Lunar PSR Detector — Chandrayaan-2 Shadow Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --void:    #07090d;
+  --panel:   #0d1420;
+  --rail:    #111927;
+  --border:  #1e2d42;
+  --accent:  #5eead4;   /* teal — doubly-shadowed */
+  --psr:     #3b82f6;   /* blue — PSR */
+  --lit:     #f59e0b;   /* amber — illuminated */
+  --danger:  #ef4444;
+  --landing: #4ade80;   /* green — landing-site safe zones */
+  --boulder: #f0599b;   /* magenta — boulder fields */
+  --ice:     #67e8f9;   /* cyan — ice concentration */
+  --muted:   #4a6080;
+  --text:    #c8daf0;
+  --bright:  #e8f4ff;
+  --mono:    'Space Mono', 'JetBrains Mono', 'Cascadia Code', 'Fira Mono', monospace;
+  --sans:    'Inter', system-ui, -apple-system, sans-serif;
+}
+html, body { height: 100%; background: var(--void); color: var(--text); font-family: var(--sans); font-size: 13px; overflow: hidden; }
+
+/* ── Layout ───────────────────────────────────────────────────── */
+#app { display: grid; grid-template-columns: 220px 1fr 260px; grid-template-rows: 48px 1fr 28px; height: 100vh; }
+
+/* topbar */
+#topbar { grid-column: 1/-1; background: var(--panel); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+#back-link { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: var(--muted);
+  text-decoration: none; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px;
+  transition: color .15s, border-color .15s; }
+#back-link:hover { color: var(--accent); border-color: var(--accent); }
+.logo { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--accent); font-weight: 700; }
+.logo-sub { color: var(--muted); font-size: 10px; letter-spacing: 1.5px; margin-left: 4px; }
+.topbar-spacer { flex: 1; }
+#status-pill { font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+  padding: 3px 10px; border-radius: 2px; background: var(--rail);
+  border: 1px solid var(--border); color: var(--muted); }
+#status-pill.running { border-color: var(--lit); color: var(--lit); }
+#status-pill.complete { border-color: var(--accent); color: var(--accent); }
+#status-pill.error { border-color: var(--danger); color: var(--danger); }
+#landing-status-pill { font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+  padding: 3px 10px; border-radius: 2px; background: var(--rail);
+  border: 1px solid var(--border); color: var(--muted); }
+#landing-status-pill.running { border-color: var(--lit); color: var(--lit); }
+#landing-status-pill.complete { border-color: var(--landing); color: var(--landing); }
+#landing-status-pill.error { border-color: var(--danger); color: var(--danger); }
+#rover-status-pill { font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+  padding: 3px 10px; border-radius: 2px; background: var(--rail);
+  border: 1px solid var(--border); color: var(--muted); }
+#rover-status-pill.running { border-color: var(--lit); color: var(--lit); }
+#rover-status-pill.complete { border-color: var(--accent); color: var(--accent); }
+#rover-status-pill.error { border-color: var(--danger); color: var(--danger); }
+#ice-status-pill { font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+  padding: 3px 10px; border-radius: 2px; background: var(--rail);
+  border: 1px solid var(--border); color: var(--muted); }
+#ice-status-pill.running { border-color: var(--lit); color: var(--lit); }
+#ice-status-pill.complete { border-color: var(--ice); color: var(--ice); }
+#ice-status-pill.error { border-color: var(--danger); color: var(--danger); }
+
+/* ice volume card */
+.ice-summary { background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+  padding: 10px 12px; }
+.ice-summary .is-title { font-family: var(--mono); font-size: 9px; color: var(--ice);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
+.ice-summary .is-vol { font-family: var(--mono); font-size: 18px; color: var(--bright);
+  line-height: 1.2; }
+.ice-summary .is-vol-unit { font-size: 10px; color: var(--muted); margin-left: 3px; }
+.ice-summary .is-ci { font-size: 10px; color: var(--muted); margin-top: 3px; }
+.ice-summary .is-ci span { font-family: var(--mono); color: var(--ice); }
+.ice-summary .is-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+.ice-summary .is-kv { font-size: 10px; }
+.ice-summary .is-kv span { font-family: var(--mono); color: var(--accent); }
+.ice-conc-bar { height: 8px; border-radius: 2px; margin-top: 8px;
+  background: linear-gradient(to right, #0ea5e9, #67e8f9, #ffffff);
+  opacity: 0.75; }
+
+/* per-crater ice rows */
+.ice-crater-row { background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+  padding: 7px 10px; }
+.ice-crater-row .icr-id { font-family: var(--mono); font-size: 9px; color: var(--muted);
+  letter-spacing: 1px; }
+.ice-crater-row .icr-vol { font-family: var(--mono); font-size: 12px; color: var(--ice);
+  margin-top: 2px; }
+.ice-crater-row .icr-ci { font-size: 9px; color: var(--muted); }
+.ice-crater-row .icr-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 5px; }
+.ice-crater-row .icr-bar-fill { height: 100%; background: var(--ice); border-radius: 1px; }
+
+/* method note */
+.method-note { font-size: 9px; color: var(--muted); line-height: 1.5;
+  border-top: 1px solid var(--border); padding-top: 8px; }
+#elapsed { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+
+/* left rail */
+#rail { background: var(--rail); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 16px 12px; gap: 20px; overflow-y: auto; }
+
+.section-label { font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+
+/* layer toggles */
+.layer-row { display: flex; align-items: center; gap: 8px; cursor: pointer;
+  padding: 5px 6px; border-radius: 3px; transition: background .1s; }
+.layer-row:hover { background: var(--panel); }
+.layer-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.layer-name { font-size: 11px; flex: 1; }
+.layer-opacity { width: 50px; font-family: var(--mono); font-size: 10px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  padding: 1px 4px; border-radius: 2px; text-align: right; }
+.toggle-check { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+
+/* params */
+.param-row { display: flex; flex-direction: column; gap: 2px; }
+.param-label { font-size: 10px; color: var(--muted); letter-spacing: .5px; }
+.param-input { background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-family: var(--mono); font-size: 11px; padding: 4px 6px; border-radius: 2px;
+  width: 100%; outline: none; }
+.param-input:focus { border-color: var(--accent); }
+
+.btn-run { background: var(--accent); color: var(--void); border: none; cursor: pointer;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase;
+  font-weight: 700; padding: 8px; border-radius: 3px; width: 100%;
+  transition: opacity .15s; margin-top: 4px; }
+.btn-run:hover { opacity: .85; }
+.btn-run:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-run.landing { background: var(--landing); }
+.btn-run.secondary { background: transparent; color: var(--landing); border: 1px solid var(--landing); }
+.btn-run.secondary:hover { background: rgba(74,222,128,.08); opacity: 1; }
+
+.rail-divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+/* map canvas area */
+#map-area { position: relative; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+#canvas-stack { position: relative; }
+#canvas-stack canvas { position: absolute; top: 0; left: 0; image-rendering: pixelated; }
+#canvas-dem { position: relative; }
+
+/* crosshair — fixed z-index so it's always on top of canvases and SVG */
+#crosshair { position: absolute; border: 2px solid var(--accent); border-radius: 50%;
+  pointer-events: none; display: none; z-index: 100; box-shadow: 0 0 12px rgba(94,234,212,.45); }
+#crosshair-label { position: absolute; font-family: var(--mono); font-size: 9px;
+  color: var(--accent); background: rgba(7,9,13,.85); padding: 2px 6px;
+  border: 1px solid var(--accent); border-radius: 2px; white-space: nowrap;
+  pointer-events: none; display: none; z-index: 101; }
+#boundary-svg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+#landing-svg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 11; }
+
+.landing-marker { cursor: default; }
+.landing-marker .ring { fill: none; stroke: var(--landing); stroke-width: 1.3; opacity: .85; }
+.landing-marker .pin { fill: var(--landing); stroke: var(--void); stroke-width: 1; }
+.landing-marker .pin.best { fill: var(--bright); }
+.landing-marker text { font-family: var(--mono); font-size: 9px; fill: var(--landing); }
+
+/* progress bar */
+#progress-bar { position: absolute; bottom: 0; left: 0; height: 2px;
+  background: var(--accent); width: 0%; transition: width .3s; }
+
+/* right panel */
+#right-panel { background: var(--rail); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; }
+#right-panel .rp-header { padding: 12px 14px 8px; border-bottom: 1px solid var(--border); }
+
+/* rp tab switcher */
+.rp-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.rp-tab { flex: 1; background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+  font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 6px 4px; border-radius: 3px 3px 0 0; cursor: pointer; text-align: center;
+  border-bottom: none; transition: color .15s; }
+.rp-tab.active { color: var(--bright); border-color: var(--border); background: var(--rail); }
+.rp-tab .count { color: var(--accent); margin-left: 3px; }
+.rp-tab.active .count { color: var(--landing); }
+
+#crater-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+#crater-list::-webkit-scrollbar { width: 4px; }
+#crater-list::-webkit-scrollbar-track { background: var(--rail); }
+#crater-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* crater card */
+.crater-card { background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+  padding: 8px 10px; cursor: pointer; transition: border-color .15s; }
+.crater-card:hover { border-color: var(--muted); }
+.crater-card.selected { border-color: var(--accent); }
+.cc-id { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.cc-coords { font-family: var(--mono); font-size: 10px; color: var(--text); margin-top: 2px; }
+.cc-stats { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.cc-stat { font-size: 10px; }
+.cc-stat span { font-family: var(--mono); color: var(--accent); }
+.conf-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 5px; }
+.conf-fill { height: 100%; background: var(--accent); border-radius: 1px; transition: width .3s; }
+
+/* landing site card */
+.landing-card { background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+  padding: 8px 10px; cursor: pointer; transition: border-color .15s; }
+.landing-card:hover { border-color: var(--muted); }
+.landing-card.selected { border-color: var(--landing); }
+.landing-card .lc-id { font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.landing-card .lc-coords { font-family: var(--mono); font-size: 10px; color: var(--text); margin-top: 2px; }
+.landing-card .lc-stats { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.landing-card .lc-stat { font-size: 10px; }
+.landing-card .lc-stat span { font-family: var(--mono); color: var(--landing); }
+.landing-card .score-bar { height: 2px; background: var(--border); border-radius: 1px; margin-top: 5px; }
+.landing-card .score-fill { height: 100%; background: var(--landing); border-radius: 1px; transition: width .3s; }
+.landing-card .lc-badge { font-family: var(--mono); font-size: 8px; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--void); background: var(--landing);
+  padding: 1px 5px; border-radius: 2px; margin-left: 6px; }
+
+/* stats summary */
+#stats-summary { padding: 10px 14px; border-top: 1px solid var(--border);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.stat-box { background: var(--panel); border: 1px solid var(--border); border-radius: 3px; padding: 6px 8px; }
+.stat-box .label { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.stat-box .value { font-family: var(--mono); font-size: 14px; color: var(--bright); margin-top: 2px; }
+.stat-box .unit { font-size: 9px; color: var(--muted); margin-left: 2px; }
+
+/* status bar */
+#statusbar { grid-column: 1/-1; background: var(--panel); border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 12px; gap: 16px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+#cursor-pos { flex: 1; }
+
+/* empty state */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100%; gap: 8px; opacity: .35; }
+.empty-state svg { width: 48px; height: 48px; }
+.empty-state p { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; }
+
+/* scan-line overlay (aesthetic) */
+#map-area::after { content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(0deg, transparent 0px, transparent 3px, rgba(0,0,0,.04) 3px, rgba(0,0,0,.04) 4px);
+  pointer-events: none; z-index: 50; }
+
+/* route card */
+.route-card { background: var(--panel); border: 1px solid var(--border); border-radius: 3px;
+  padding: 10px 12px; }
+.route-card .rc-title { font-family: var(--mono); font-size: 9px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase; }
+.route-card .rc-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.route-card .rc-metric { font-size: 10px; }
+.route-card .rc-metric span { font-family: var(--mono); color: var(--accent); }
+.route-card .rc-status { margin-top: 8px; font-size: 10px; color: var(--muted); }
+.diagnosis-banner { background: rgba(239,68,68,.12); border: 1px solid var(--danger); border-radius: 3px;
+  padding: 8px 10px; font-size: 10px; color: var(--danger); line-height: 1.5; }
+
+/* scrollbar for route-list */
+#route-list::-webkit-scrollbar { width: 4px; }
+#route-list::-webkit-scrollbar-track { background: var(--rail); }
+#route-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* rover path SVG overlay */
+#rover-svg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 12; }
+.rover-path-line { fill: none; stroke: #fbbf24; stroke-width: 2; stroke-linecap: round;
+  stroke-linejoin: round; opacity: 0.9; }
+.rover-marker { }
+.rover-marker circle { }
+.rover-marker text { font-family: monospace; font-size: 9px; }
+
+/* scrollbars */
+#rail::-webkit-scrollbar { width: 3px; }
+#rail::-webkit-scrollbar-track { background: transparent; }
+#rail::-webkit-scrollbar-thumb { background: var(--border); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Topbar -->
+  <header id="topbar">
+    <a href="index.html" id="back-link" title="Back to project overview">&larr; Overview</a>
+    <span class="logo">LUNAR-PSR<span class="logo-sub"> // SHADOW + LANDING-SITE ANALYSIS</span></span>
+    <div class="topbar-spacer"></div>
+    <span id="landing-status-pill" style="display:none;"></span>
+    <span id="rover-status-pill" style="display:none;"></span>
+    <span id="ice-status-pill" style="display:none;"></span>
+    <span id="elapsed"></span>
+    <span id="status-pill">IDLE</span>
+  </header>
+
+  <!-- Left rail -->
+  <aside id="rail">
+    <div>
+      <div class="section-label">Layers</div>
+      <div id="layer-controls"></div>
+    </div>
+    <div>
+      <div class="section-label">Parameters</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="param-row">
+          <label class="param-label">Grid size (px)</label>
+          <input class="param-input" id="p-grid" type="number" value="192" min="64" max="512" step="32"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Pixel size (m)</label>
+          <input class="param-input" id="p-pixel" type="number" value="10" min="1" max="100"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Sun elevation (°)</label>
+          <input class="param-input" id="p-sun" type="number" value="1.5" min="0.1" max="10" step="0.1"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Azimuths</label>
+          <input class="param-input" id="p-az" type="number" value="10" min="4" max="24" step="2"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Search radius (m)</label>
+          <input class="param-input" id="p-search" type="number" value="400" min="50" max="2000" step="50"/>
+        </div>
+        <button class="btn-run" id="btn-run">▶ Run Detection</button>
+      </div>
+    </div>
+    <div class="rail-divider"></div>
+    <div>
+      <div class="section-label" style="color:var(--landing);">Step 3 · Landing Site</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="param-row">
+          <label class="param-label">Slope redline (°)</label>
+          <input class="param-input" id="p-slope-redline" type="number" value="15" min="5" max="45" step="1"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Slope caution (°)</label>
+          <input class="param-input" id="p-slope-caution" type="number" value="5" min="0" max="15" step="0.5"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Boulder redline (per 100m²)</label>
+          <input class="param-input" id="p-boulder-redline" type="number" value="12" min="1" max="50" step="1"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Landing ellipse a×b (m)</label>
+          <div style="display:flex;gap:4px;">
+            <input class="param-input" id="p-ellipse-a" type="number" value="150" min="20" max="1000" step="10"/>
+            <input class="param-input" id="p-ellipse-b" type="number" value="100" min="20" max="1000" step="10"/>
+          </div>
+        </div>
+        <button class="btn-run landing" id="btn-run-landing" disabled>▶ Find Landing Sites</button>
+        <div id="landing-hint" style="font-size:9px;color:var(--muted);line-height:1.4;">Run detection first — landing analysis reuses that DEM.</div>
+      </div>
+    </div>
+    <div class="rail-divider"></div>
+    <div>
+      <div class="section-label" style="color:var(--lit);">Step 4 · Rover Path</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="param-row">
+          <label class="param-label">Start — Landing Site</label>
+          <select class="param-input" id="p-rover-start" disabled>
+            <option value="">— run landing analysis first —</option>
+          </select>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Goal — Crater Target</label>
+          <select class="param-input" id="p-rover-goal" disabled>
+            <option value="">— run detection first —</option>
+          </select>
+        </div>
+        <button class="btn-run" id="btn-run-rover" disabled style="background:var(--lit);color:var(--void);">▶ Plan Rover Path</button>
+        <div id="rover-hint" style="font-size:9px;color:var(--muted);line-height:1.4;">Run Steps 1–3 first, then select start and goal.</div>
+      </div>
+    </div>
+    <div class="rail-divider"></div>
+    <div>
+      <div class="section-label" style="color:var(--ice);">Step 5 · Ice Volume</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="param-row">
+          <label class="param-label">Radar depth (m)</label>
+          <input class="param-input" id="p-radar-depth" type="number" value="5" min="1" max="20" step="0.5"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Depth uncertainty ± (m)</label>
+          <input class="param-input" id="p-depth-sigma" type="number" value="1" min="0.1" max="5" step="0.1"/>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Ice concentration range (%)</label>
+          <div style="display:flex;gap:4px;">
+            <input class="param-input" id="p-conc-min" type="number" value="10" min="1" max="50" step="1" placeholder="min"/>
+            <input class="param-input" id="p-conc-max" type="number" value="20" min="1" max="80" step="1" placeholder="max"/>
+          </div>
+        </div>
+        <div class="param-row">
+          <label class="param-label">Conc. uncertainty ± (%)</label>
+          <input class="param-input" id="p-conc-sigma" type="number" value="4" min="1" max="20" step="0.5"/>
+        </div>
+        <button class="btn-run" id="btn-run-ice" disabled style="background:var(--ice);color:var(--void);">▶ Estimate Ice Volume</button>
+        <div id="ice-hint" style="font-size:9px;color:var(--muted);line-height:1.4;">Run detection first — uses doubly-shadowed pixels.</div>
+      </div>
+    </div>
+    <div class="rail-divider"></div>
+    <div>
+      <div class="section-label">Legend</div>
+      <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;">
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></div> Illuminated terrain</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#3b82f6;flex-shrink:0;"></div> Permanently shadowed</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#5eead4;flex-shrink:0;"></div> Doubly shadowed</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#4ade80;flex-shrink:0;"></div> Safe landing site</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#f0599b;flex-shrink:0;"></div> Boulder field</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#ef4444;flex-shrink:0;"></div> Red-flagged (&gt;15°)</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:24px;height:3px;background:#fbbf24;border-radius:2px;flex-shrink:0;"></div> Rover traverse path</div>
+        <div style="display:flex;align-items:center;gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:#67e8f9;flex-shrink:0;"></div> Ice concentration</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Map -->
+  <main id="map-area">
+    <div id="canvas-stack">
+      <canvas id="canvas-dem"></canvas>
+      <canvas id="canvas-ohrc"></canvas>
+      <canvas id="canvas-psr"></canvas>
+      <canvas id="canvas-ds"></canvas>
+      <canvas id="canvas-lit"></canvas>
+      <canvas id="canvas-slope"></canvas>
+      <canvas id="canvas-boulder"></canvas>
+      <canvas id="canvas-safety"></canvas>
+      <canvas id="canvas-redflag"></canvas>
+      <canvas id="canvas-ice-conc"></canvas>
+      <svg id="boundary-svg"></svg>
+      <svg id="landing-svg"></svg>
+      <svg id="rover-svg"></svg>
+      <div id="crosshair"></div>
+      <div id="crosshair-label"></div>
+    </div>
+    <div id="progress-bar"></div>
+    <div class="empty-state" id="empty-state">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="32" cy="32" r="28" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <circle cx="32" cy="32" r="10" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="32" cy="32" r="3" fill="currentColor"/>
+        <line x1="32" y1="4" x2="32" y2="14" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="32" y1="50" x2="32" y2="60" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="4" y1="32" x2="14" y2="32" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="50" y1="32" x2="60" y2="32" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+      <p>Configure &amp; run detection</p>
+    </div>
+  </main>
+
+  <!-- Right panel -->
+  <aside id="right-panel">
+    <div class="rp-tabs">
+      <div class="rp-tab active" id="tab-craters" data-tab="craters">Craters<span class="count" id="tab-craters-count"></span></div>
+      <div class="rp-tab" id="tab-landing" data-tab="landing">Landing<span class="count" id="tab-landing-count"></span></div>
+      <div class="rp-tab" id="tab-route" data-tab="route">Route</div>
+      <div class="rp-tab" id="tab-ice" data-tab="ice">Ice</div>
+    </div>
+    <div id="crater-list">
+      <div class="empty-state" style="height:120px;">
+        <p style="font-size:10px;">No data</p>
+      </div>
+    </div>
+    <div id="landing-list" style="flex:1;overflow-y:auto;padding:8px;display:none;flex-direction:column;gap:4px;">
+      <div class="empty-state" style="height:120px;">
+        <p style="font-size:10px;">Run landing analysis</p>
+      </div>
+    </div>
+    <div id="route-list" style="flex:1;overflow-y:auto;padding:8px;display:none;flex-direction:column;gap:4px;">
+      <div class="empty-state" style="height:120px;">
+        <p style="font-size:10px;">Plan a rover route</p>
+      </div>
+    </div>
+    <div id="ice-list" style="flex:1;overflow-y:auto;padding:8px;display:none;flex-direction:column;gap:6px;">
+      <div class="empty-state" style="height:120px;">
+        <p style="font-size:10px;">Estimate ice volume</p>
+      </div>
+    </div>
+    <div id="stats-summary">
+      <div class="stat-box">
+        <div class="label">PSR cover</div>
+        <div class="value" id="stat-psr">—<span class="unit">%</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="label">DS cover</div>
+        <div class="value" id="stat-ds">—<span class="unit">%</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Candidates</div>
+        <div class="value" id="stat-n">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Elapsed</div>
+        <div class="value" id="stat-t">—<span class="unit">s</span></div>
+      </div>
+    </div>
+    <div id="stats-summary-landing" style="padding:10px 14px; border-top:1px solid var(--border); display:none; grid-template-columns:1fr 1fr; gap:6px;">
+      <div class="stat-box">
+        <div class="label">Terrain safe</div>
+        <div class="value" id="stat-safe" style="color:var(--landing);">—<span class="unit">%</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Slope redflag</div>
+        <div class="value" id="stat-redflag" style="color:var(--danger);">—<span class="unit">%</span></div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Boulders</div>
+        <div class="value" id="stat-boulders">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">Elapsed</div>
+        <div class="value" id="stat-t-landing">—<span class="unit">s</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Status bar -->
+  <footer id="statusbar">
+    <span id="cursor-pos">pixel (—, —)</span>
+    <span>grid <span id="sb-grid">—</span></span>
+    <span>resolution <span id="sb-res">—</span></span>
+  </footer>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const API = 'http://localhost:8000';
+
+// ── Layer definitions ─────────────────────────────────────────────────────────
+const LAYERS = [
+  { id: 'dem',      name: 'DEM (terrain)',     dot: '#a78bfa', canvas: 'canvas-dem',     visible: true,  opacity: 1.0, group: 'psr' },
+  { id: 'lit',      name: 'Illumination',      dot: '#f59e0b', canvas: 'canvas-lit',     visible: true,  opacity: 0.7, group: 'psr' },
+  { id: 'psr',      name: 'PSR mask',          dot: '#3b82f6', canvas: 'canvas-psr',     visible: true,  opacity: 0.6, group: 'psr' },
+  { id: 'ds',       name: 'Doubly-shadowed',   dot: '#5eead4', canvas: 'canvas-ds',      visible: true,  opacity: 0.85, group: 'psr' },
+  { id: 'ohrc',     name: 'OHRC imagery',      dot: '#94a3b8', canvas: 'canvas-ohrc',    visible: false, opacity: 1.0, group: 'landing' },
+  { id: 'slope',    name: 'Slope map',         dot: '#facc15', canvas: 'canvas-slope',   visible: false, opacity: 0.65, group: 'landing' },
+  { id: 'boulder',  name: 'Boulder density',   dot: '#f0599b', canvas: 'canvas-boulder', visible: false, opacity: 0.75, group: 'landing' },
+  { id: 'safety',   name: 'Safety score',      dot: '#4ade80', canvas: 'canvas-safety',  visible: false, opacity: 0.6, group: 'landing' },
+  { id: 'redflag',  name: 'Red-flagged zones', dot: '#ef4444', canvas: 'canvas-redflag',   visible: true,  opacity: 0.8, group: 'landing' },
+  { id: 'ice_conc', name: 'Ice concentration', dot: '#67e8f9', canvas: 'canvas-ice-conc', visible: false, opacity: 0.7, group: 'ice' },
+];
+
+let currentJobId = null;
+let currentResult = null;
+let selectedCrater = null;
+let gridSize = 0;
+let landingResult = null;
+let selectedLandingSite = null;
+let roverResult = null;
+let iceResult   = null;
+let activeRightTab = 'craters';
+
+// ── Layer controls ────────────────────────────────────────────────────────────
+function buildLayerControls() {
+  const container = document.getElementById('layer-controls');
+  container.innerHTML = '';
+  LAYERS.forEach(layer => {
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+
+    const dot = document.createElement('div');
+    dot.className = 'layer-dot';
+    dot.style.background = layer.dot;
+
+    const chk = document.createElement('input');
+    chk.type = 'checkbox'; chk.className = 'toggle-check';
+    chk.checked = layer.visible;
+    chk.addEventListener('change', () => {
+      layer.visible = chk.checked;
+      updateCanvasVisibility();
+    });
+
+    const name = document.createElement('span');
+    name.className = 'layer-name'; name.textContent = layer.name;
+
+    const opInput = document.createElement('input');
+    opInput.type = 'number'; opInput.className = 'layer-opacity';
+    opInput.value = Math.round(layer.opacity * 100);
+    opInput.min = 0; opInput.max = 100; opInput.step = 10;
+    opInput.addEventListener('change', () => {
+      layer.opacity = Math.max(0, Math.min(1, parseInt(opInput.value||'0')/100));
+      updateCanvasVisibility();
+    });
+
+    row.appendChild(dot); row.appendChild(chk);
+    row.appendChild(name); row.appendChild(opInput);
+    container.appendChild(row);
+  });
+}
+
+function updateCanvasVisibility() {
+  LAYERS.forEach((layer, i) => {
+    const cv = document.getElementById(layer.canvas);
+    if (!cv) return;
+    cv.style.display = layer.visible ? 'block' : 'none';
+    cv.style.opacity = layer.opacity;
+    cv.style.zIndex = i + 1;
+  });
+}
+
+// ── Canvas setup ──────────────────────────────────────────────────────────────
+function resizeCanvases(size) {
+  const stack = document.getElementById('canvas-stack');
+  const mapArea = document.getElementById('map-area');
+  const maxW = mapArea.clientWidth - 20;
+  const maxH = mapArea.clientHeight - 20;
+  const displaySize = Math.min(maxW, maxH, 700);
+
+  stack.style.width = displaySize + 'px';
+  stack.style.height = displaySize + 'px';
+
+  // SVG
+  const svg = document.getElementById('boundary-svg');
+  svg.setAttribute('width', displaySize);
+  svg.setAttribute('height', displaySize);
+  svg.style.width = displaySize + 'px';
+  svg.style.height = displaySize + 'px';
+
+  const lsvg = document.getElementById('landing-svg');
+  lsvg.setAttribute('width', displaySize);
+  lsvg.setAttribute('height', displaySize);
+  lsvg.style.width = displaySize + 'px';
+  lsvg.style.height = displaySize + 'px';
+
+  const rsvg = document.getElementById('rover-svg');
+  rsvg.setAttribute('width', displaySize);
+  rsvg.setAttribute('height', displaySize);
+  rsvg.style.width = displaySize + 'px';
+  rsvg.style.height = displaySize + 'px';
+
+  LAYERS.forEach(layer => {
+    const cv = document.getElementById(layer.canvas);
+    cv.width = size; cv.height = size;
+    cv.style.width = displaySize + 'px';
+    cv.style.height = displaySize + 'px';
+  });
+
+  gridSize = size;
+  return displaySize;
+}
+
+// ── Load an image URL into a canvas with colorization ────────────────────────
+async function loadLayerImage(canvas, url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve();
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// ── Draw crater boundaries on SVG ─────────────────────────────────────────────
+function drawBoundaries(craters, displaySize, gridSz) {
+  const svg = document.getElementById('boundary-svg');
+  svg.innerHTML = '';
+  const scale = displaySize / gridSz;
+
+  craters.forEach((c, idx) => {
+    const cx = c.centroid_col * scale;
+    const cy = c.centroid_row * scale;
+    const r = c.radius_px * scale;
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', r);
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('stroke', idx === 0 ? '#5eead4' : '#3b82f6');
+    circle.setAttribute('stroke-width', '1.5');
+    circle.setAttribute('stroke-dasharray', '4 3');
+    circle.setAttribute('opacity', '0.9');
+    svg.appendChild(circle);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', cx + r + 4); label.setAttribute('y', cy + 4);
+    label.setAttribute('fill', idx === 0 ? '#5eead4' : '#3b82f6');
+    label.setAttribute('font-size', '9'); label.setAttribute('font-family', 'monospace');
+    label.textContent = `#${c.id}`;
+    svg.appendChild(label);
+  });
+}
+
+// ── Crosshair ─────────────────────────────────────────────────────────────────
+function showCrosshair(crater, displaySize, gridSz) {
+  if (!crater) { hideCrosshair(); return; }
+  const scale = displaySize / gridSz;
+  const cx = crater.centroid_col * scale;
+  const cy = crater.centroid_row * scale;
+  const r = (crater.radius_px + 4) * scale;
+
+  const stack = document.getElementById('canvas-stack');
+  const ch = document.getElementById('crosshair');
+  const cl = document.getElementById('crosshair-label');
+
+  // Position relative to canvas-stack
+  ch.style.width  = (r * 2) + 'px';
+  ch.style.height = (r * 2) + 'px';
+  ch.style.left   = (cx - r) + 'px';
+  ch.style.top    = (cy - r) + 'px';
+  ch.style.borderColor = 'var(--accent)';
+  ch.style.boxShadow = '0 0 12px rgba(94,234,212,.45)';
+  ch.style.display = 'block';
+
+  cl.style.left = (cx + r + 6) + 'px';
+  cl.style.top  = (cy - 8)     + 'px';
+  cl.style.color = 'var(--accent)';
+  cl.style.borderColor = 'var(--accent)';
+  cl.style.display = 'block';
+  cl.textContent = `Cand. #${crater.id}  r=${Math.round(crater.radius_m)}m`;
+}
+
+function hideCrosshair() {
+  document.getElementById('crosshair').style.display = 'none';
+  document.getElementById('crosshair-label').style.display = 'none';
+}
+
+// ── Draw landing-site ellipses on their own SVG overlay ───────────────────────
+function drawLandingSites(sites, displaySize, gridSz, pixelSizeM) {
+  const svg = document.getElementById('landing-svg');
+  svg.innerHTML = '';
+  if (!sites || !sites.length) return;
+  const scale = displaySize / gridSz;
+
+  sites.forEach((s, idx) => {
+    const cx = s.centroid_col * scale;
+    const cy = s.centroid_row * scale;
+    const rx = (s.semi_minor_m / pixelSizeM) * scale;
+    const ry = (s.semi_major_m / pixelSizeM) * scale;
+    const isBest = idx === 0;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'landing-marker');
+    g.dataset.siteId = s.id;
+
+    const ellipse = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    ellipse.setAttribute('cx', cx); ellipse.setAttribute('cy', cy);
+    ellipse.setAttribute('rx', rx); ellipse.setAttribute('ry', ry);
+    ellipse.setAttribute('class', 'ring');
+    ellipse.setAttribute('stroke-width', isBest ? '2' : '1.2');
+    g.appendChild(ellipse);
+
+    const pin = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    pin.setAttribute('cx', cx); pin.setAttribute('cy', cy); pin.setAttribute('r', isBest ? 4 : 3);
+    pin.setAttribute('class', isBest ? 'pin best' : 'pin');
+    g.appendChild(pin);
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', cx + rx + 4); label.setAttribute('y', cy + 3);
+    label.textContent = `LZ-${s.id}${isBest ? ' · BEST' : ''}`;
+    g.appendChild(label);
+
+    svg.appendChild(g);
+  });
+}
+
+// ── Crosshair on a landing site ───────────────────────────────────────────────
+function showLandingCrosshair(site, displaySize, gridSz, pixelSizeM) {
+  if (!site) { hideCrosshair(); return; }
+  const scale = displaySize / gridSz;
+  const cx = site.centroid_col * scale;
+  const cy = site.centroid_row * scale;
+  const r = (site.semi_major_m / pixelSizeM) * scale + 6;
+
+  const ch = document.getElementById('crosshair');
+  const cl = document.getElementById('crosshair-label');
+
+  ch.style.width  = (r * 2) + 'px';
+  ch.style.height = (r * 2) + 'px';
+  ch.style.left   = (cx - r) + 'px';
+  ch.style.top    = (cy - r) + 'px';
+  ch.style.borderColor = 'var(--landing)';
+  ch.style.boxShadow = '0 0 12px rgba(74,222,128,.45)';
+  ch.style.display = 'block';
+
+  cl.style.left = (cx + r + 6) + 'px';
+  cl.style.top  = (cy - 8)     + 'px';
+  cl.style.color = 'var(--landing)';
+  cl.style.borderColor = 'var(--landing)';
+  cl.style.display = 'block';
+  cl.textContent = `LZ-${site.id}  score=${site.mean_score.toFixed(0)}`;
+}
+
+// ── Draw rover path on SVG overlay ────────────────────────────────────────────
+function drawRoverPath(result, displaySize, gridSz) {
+  const svg = document.getElementById('rover-svg');
+  svg.innerHTML = '';
+  if (!result || !result.path_found || !result.waypoints || result.waypoints.length < 2) return;
+  const scale = displaySize / gridSz;
+
+  // Draw the full path as a polyline
+  const pts = result.waypoints.map(p => `${p.col * scale},${p.row * scale}`).join(' ');
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  polyline.setAttribute('points', pts);
+  polyline.setAttribute('class', 'rover-path-line');
+  svg.appendChild(polyline);
+
+  // Start marker (A)
+  const first = result.waypoints[0];
+  const last  = result.waypoints[result.waypoints.length - 1];
+  const markers = [
+    { pt: first, label: 'A', color: '#4ade80' },
+    { pt: last,  label: 'B', color: '#f87171' },
+  ];
+  markers.forEach(({ pt, label, color }) => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'rover-marker');
+    const cx = pt.col * scale, cy = pt.row * scale;
+
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', cx); circle.setAttribute('cy', cy); circle.setAttribute('r', '6');
+    circle.setAttribute('fill', color); circle.setAttribute('stroke', '#07090d'); circle.setAttribute('stroke-width', '1.5');
+    g.appendChild(circle);
+
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', cx + 9); text.setAttribute('y', cy + 4);
+    text.setAttribute('fill', color); text.setAttribute('font-size', '10');
+    text.textContent = label;
+    g.appendChild(text);
+
+    svg.appendChild(g);
+  });
+}
+
+// ── Render route summary card ─────────────────────────────────────────────────
+function renderRouteCard(result) {
+  const list = document.getElementById('route-list');
+  list.innerHTML = '';
+
+  if (!result) {
+    list.innerHTML = '<div class="empty-state" style="height:120px;"><p style="font-size:10px;">Plan a rover route</p></div>';
+    return;
+  }
+
+  if (!result.path_found) {
+    const banner = document.createElement('div');
+    banner.className = 'diagnosis-banner';
+    banner.textContent = '⚠ ' + (result.diagnosis?.reason || 'No path found');
+    list.appendChild(banner);
+    return;
+  }
+
+  const card = document.createElement('div');
+  card.className = 'route-card';
+  card.innerHTML = `
+    <div class="rc-title">Rover Traverse · A → B</div>
+    <div class="rc-metrics">
+      <div class="rc-metric">distance <span>${(result.total_distance_m / 1000).toFixed(2)} km</span></div>
+      <div class="rc-metric">waypoints <span>${result.n_waypoints}</span></div>
+      <div class="rc-metric">mean slope <span>${result.mean_slope_deg.toFixed(1)}°</span></div>
+      <div class="rc-metric">max slope <span>${result.max_slope_deg.toFixed(1)}°</span></div>
+    </div>
+    <div class="rc-status" style="color:var(--landing);">✓ ${result.diagnosis?.reason || 'Path found successfully.'}</div>
+  `;
+  list.appendChild(card);
+}
+
+// ── Populate rover dropdowns ──────────────────────────────────────────────────
+function populateRoverDropdowns(landingSites, craters) {
+  const startSel = document.getElementById('p-rover-start');
+  const goalSel  = document.getElementById('p-rover-goal');
+
+  startSel.innerHTML = '';
+  if (!landingSites || landingSites.length === 0) {
+    startSel.innerHTML = '<option value="">— no landing sites —</option>';
+    startSel.disabled = true;
+  } else {
+    landingSites.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ row: s.centroid_row, col: s.centroid_col });
+      opt.textContent = `LZ-${s.id}  score=${s.mean_score.toFixed(0)}`;
+      startSel.appendChild(opt);
+    });
+    startSel.disabled = false;
+  }
+
+  goalSel.innerHTML = '';
+  if (!craters || craters.length === 0) {
+    goalSel.innerHTML = '<option value="">— no craters —</option>';
+    goalSel.disabled = true;
+  } else {
+    craters.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ row: Math.round(c.centroid_row), col: Math.round(c.centroid_col) });
+      opt.textContent = `#${c.id}  r=${Math.round(c.radius_m)}m`;
+      goalSel.appendChild(opt);
+    });
+    goalSel.disabled = false;
+  }
+
+  const canPlan = !startSel.disabled && !goalSel.disabled;
+  document.getElementById('btn-run-rover').disabled = !canPlan;
+  if (canPlan) {
+    document.getElementById('rover-hint').textContent = 'Select start site and goal crater, then plan path.';
+  }
+}
+
+// ── Render ice volume panel ───────────────────────────────────────────────────
+function renderIcePanel(result) {
+  const list = document.getElementById('ice-list');
+  list.innerHTML = '';
+
+  if (!result) {
+    list.innerHTML = '<div class="empty-state" style="height:120px;"><p style="font-size:10px;">Estimate ice volume</p></div>';
+    return;
+  }
+
+  // ── Summary card ──────────────────────────────────────────────────────────
+  const fmtVol = (m3) => {
+    if (m3 >= 1e9)  return { val: (m3 / 1e9).toFixed(4),  unit: 'km³' };
+    if (m3 >= 1e6)  return { val: (m3 / 1e6).toFixed(3),  unit: '×10⁶ m³' };
+    if (m3 >= 1e3)  return { val: (m3 / 1e3).toFixed(2),  unit: '×10³ m³' };
+    return           { val: m3.toFixed(1),                 unit: 'm³' };
+  };
+
+  const med  = fmtVol(result.total_vol_m3_p50);
+  const lo   = fmtVol(result.total_vol_m3_p5);
+  const hi   = fmtVol(result.total_vol_m3_p95);
+
+  const summary = document.createElement('div');
+  summary.className = 'ice-summary';
+  summary.innerHTML = `
+    <div class="is-title">Total Ice Volume Estimate</div>
+    <div class="is-vol">${med.val}<span class="is-vol-unit">${med.unit}</span></div>
+    <div class="is-ci">90% CI: <span>${lo.val} ${lo.unit}</span> — <span>${hi.val} ${hi.unit}</span></div>
+    <div class="ice-conc-bar" title="Low → high concentration gradient"></div>
+    <div class="is-meta">
+      <div class="is-kv">area <span>${result.total_area_km2.toFixed(4)} km²</span></div>
+      <div class="is-kv">pixels <span>${result.n_ice_pixels.toLocaleString()}</span></div>
+      <div class="is-kv">mean conc <span>${result.mean_conc_pct.toFixed(1)}%</span></div>
+      <div class="is-kv">depth <span>${result.radar_depth_m} m</span></div>
+    </div>
+  `;
+  list.appendChild(summary);
+
+  // ── Per-region rows ────────────────────────────────────────────────────────
+  if (result.per_crater && result.per_crater.length) {
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:4px 2px;';
+    hdr.textContent = 'Per-Region Breakdown';
+    list.appendChild(hdr);
+
+    // find max p50 for bar scaling
+    const maxVol = Math.max(...result.per_crater.map(r => r.vol_m3_p50), 1);
+
+    result.per_crater.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'ice-crater-row';
+      const rv  = fmtVol(r.vol_m3_p50);
+      const rlo = fmtVol(r.vol_m3_p5);
+      const rhi = fmtVol(r.vol_m3_p95);
+      const pct = Math.round((r.vol_m3_p50 / maxVol) * 100);
+      const label = (r.crater_id === 'unassigned') ? 'UNASSIGNED ICE (no nearby crater)'
+                  : (r.crater_id === 'all')         ? 'ALL ICE PIXELS'
+                  : `CRATER #${r.crater_id}`;
+      row.innerHTML = `
+        <div class="icr-id">${label} · ${r.n_ice_pixels} ice px · ${r.area_m2.toFixed(0)} m²</div>
+        <div class="icr-vol">${rv.val} <span style="font-size:9px;color:var(--muted);">${rv.unit}</span></div>
+        <div class="icr-ci" style="color:var(--muted);">CI: ${rlo.val}–${rhi.val} ${rhi.unit} · conc ${r.mean_conc_pct.toFixed(1)}%</div>
+        <div class="icr-bar"><div class="icr-bar-fill" style="width:${pct}%"></div></div>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  // ── Method note ───────────────────────────────────────────────────────────
+  const note = document.createElement('div');
+  note.className = 'method-note';
+  note.textContent = result.method_note || '';
+  list.appendChild(note);
+}
+
+// ── Render crater list ────────────────────────────────────────────────────────
+let _displaySize = 0;
+
+function renderCraterList(craters) {
+  const list = document.getElementById('crater-list');
+  list.innerHTML = '';
+  if (!craters || craters.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="height:120px;"><p style="font-size:10px;">No candidates detected</p></div>';
+    return;
+  }
+
+  craters.forEach((c, idx) => {
+    const card = document.createElement('div');
+    card.className = 'crater-card';
+    if (selectedCrater && selectedCrater.id === c.id) card.classList.add('selected');
+    card.innerHTML = `
+      <div class="cc-id">CANDIDATE #${c.id} ${idx === 0 ? '· PRIMARY' : ''}</div>
+      <div class="cc-coords">(${c.centroid_row.toFixed(1)}, ${c.centroid_col.toFixed(1)}) px</div>
+      <div class="cc-stats">
+        <div class="cc-stat">r <span>${Math.round(c.radius_m)}m</span></div>
+        <div class="cc-stat">depth <span>${Math.round(c.depth_m)}m</span></div>
+        <div class="cc-stat">conf <span>${(c.confidence*100).toFixed(0)}%</span></div>
+      </div>
+      <div class="conf-bar"><div class="conf-fill" style="width:${c.confidence*100}%"></div></div>
+    `;
+    card.addEventListener('click', () => {
+      selectedCrater = c;
+      showCrosshair(c, _displaySize, gridSize);
+      document.querySelectorAll('.crater-card').forEach(el => el.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+    list.appendChild(card);
+  });
+}
+
+// ── Render landing-site list ──────────────────────────────────────────────────
+function renderLandingList(sites, pixelSizeM) {
+  const list = document.getElementById('landing-list');
+  list.innerHTML = '';
+  if (!sites || sites.length === 0) {
+    list.innerHTML = '<div class="empty-state" style="height:120px;"><p style="font-size:10px;">No safe sites found</p></div>';
+    return;
+  }
+
+  sites.forEach((s, idx) => {
+    const card = document.createElement('div');
+    card.className = 'landing-card';
+    if (selectedLandingSite && selectedLandingSite.id === s.id) card.classList.add('selected');
+    card.innerHTML = `
+      <div class="lc-id">LANDING ZONE LZ-${s.id} ${idx === 0 ? '<span class="lc-badge">Best</span>' : ''}</div>
+      <div class="lc-coords">(${s.centroid_row}, ${s.centroid_col}) px · target #${s.nearest_crater_id ?? '—'} @ ${Math.round(s.distance_to_target_m)}m</div>
+      <div class="lc-stats">
+        <div class="lc-stat">mean <span>${s.mean_score.toFixed(0)}</span></div>
+        <div class="lc-stat">min <span>${s.min_score.toFixed(0)}</span></div>
+        <div class="lc-stat">a×b <span>${Math.round(s.semi_major_m)}×${Math.round(s.semi_minor_m)}m</span></div>
+      </div>
+      <div class="score-bar"><div class="score-fill" style="width:${s.mean_score}%"></div></div>
+    `;
+    card.addEventListener('click', () => {
+      selectedLandingSite = s;
+      showLandingCrosshair(s, _displaySize, gridSize, pixelSizeM);
+      document.querySelectorAll('.landing-card').forEach(el => el.classList.remove('selected'));
+      card.classList.add('selected');
+    });
+    list.appendChild(card);
+  });
+}
+
+// ── Right-panel tab switching ─────────────────────────────────────────────────
+function switchRightTab(tab) {
+  activeRightTab = tab;
+  ['craters','landing','route','ice'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+  document.getElementById('crater-list').style.display  = tab === 'craters' ? 'flex' : 'none';
+  document.getElementById('landing-list').style.display = tab === 'landing' ? 'flex' : 'none';
+  document.getElementById('route-list').style.display   = tab === 'route'   ? 'flex' : 'none';
+  document.getElementById('ice-list').style.display     = tab === 'ice'     ? 'flex' : 'none';
+  document.getElementById('stats-summary').style.display         = tab === 'craters' ? 'grid' : 'none';
+  document.getElementById('stats-summary-landing').style.display = tab === 'landing' ? 'grid' : 'none';
+}
+document.getElementById('tab-craters').addEventListener('click', () => switchRightTab('craters'));
+document.getElementById('tab-landing').addEventListener('click', () => switchRightTab('landing'));
+document.getElementById('tab-route').addEventListener('click',   () => switchRightTab('route'));
+document.getElementById('tab-ice').addEventListener('click',     () => switchRightTab('ice'));
+
+// ── Poll loop ─────────────────────────────────────────────────────────────────
+async function pollJob(jobId) {
+  const pill = document.getElementById('status-pill');
+  const bar  = document.getElementById('progress-bar');
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 600));
+    let st;
+    try {
+      const res = await fetch(`${API}/api/status/${jobId}`);
+      st = await res.json();
+    } catch {
+      pill.textContent = 'SERVER UNREACHABLE';
+      pill.className = 'error';
+      return;
+    }
+
+    bar.style.width = (st.progress || 0) + '%';
+    pill.textContent = st.status.toUpperCase() + ' ' + (st.progress||0) + '%';
+
+    if (st.status === 'complete') {
+      pill.className = 'complete';
+      pill.textContent = 'COMPLETE';
+      bar.style.width = '100%';
+      await loadResult(jobId, st);
+      return;
+    }
+    if (st.status === 'error') {
+      pill.className = 'error';
+      pill.textContent = 'ERROR';
+      pill.title = st.error || 'Unknown error — check server log.';
+      console.error('Job error:', st.error);
+      document.getElementById('btn-run').disabled = false;
+      return;
+    }
+  }
+}
+
+async function loadResult(jobId, statusData) {
+  const grid = parseInt(document.getElementById('p-grid').value);
+  _displaySize = resizeCanvases(grid);
+
+  // Load all layer PNGs
+  const layers = [
+    { id: 'dem', canvas: document.getElementById('canvas-dem') },
+    { id: 'lit_fraction', canvas: document.getElementById('canvas-lit') },
+    { id: 'psr', canvas: document.getElementById('canvas-psr') },
+    { id: 'doubly_shadowed', canvas: document.getElementById('canvas-ds') },
+  ];
+
+  await Promise.all(layers.map(l =>
+    loadLayerImage(l.canvas, `${API}/api/layer/${jobId}/${l.id}.png?t=${Date.now()}`)
+  ));
+
+  updateCanvasVisibility();
+
+  // Fetch JSON result
+  const res = await fetch(`${API}/api/result/${jobId}`);
+  currentResult = await res.json();
+
+  // Hide empty state
+  document.getElementById('empty-state').style.display = 'none';
+
+  // Draw boundaries
+  drawBoundaries(currentResult.craters, _displaySize, grid);
+
+  // Render crater list
+  renderCraterList(currentResult.craters);
+  document.getElementById('tab-craters-count').textContent = currentResult.n_craters ? ` (${currentResult.n_craters})` : '';
+
+  // Stats
+  document.getElementById('stat-n').textContent = currentResult.n_craters || '0';
+  document.getElementById('stat-t').innerHTML = (currentResult.elapsed_s?.toFixed(2) || '—') + '<span class="unit">s</span>';
+
+  // PSR / DS coverage from backend masks
+  const psrPct = Number(currentResult.psr_area_pct ?? 0);
+  const dsPct  = Number(currentResult.doubly_shadowed_area_pct ?? 0);
+  document.getElementById('stat-psr').innerHTML = psrPct.toFixed(2) + '<span class="unit">%</span>';
+  document.getElementById('stat-ds').innerHTML = dsPct.toFixed(3) + '<span class="unit">%</span>';
+
+  document.getElementById('sb-grid').textContent = `${grid}×${grid}`;
+  document.getElementById('sb-res').textContent = `${document.getElementById('p-pixel').value}m/px`;
+
+  document.getElementById('elapsed').textContent = `${currentResult.elapsed_s?.toFixed(2)}s`;
+  document.getElementById('btn-run').disabled = false;
+
+  // A fresh DEM invalidates any prior landing analysis for this job
+  landingResult = null;
+  selectedLandingSite = null;
+  roverResult = null;
+  iceResult   = null;
+  document.getElementById('landing-svg').innerHTML = '';
+  document.getElementById('rover-svg').innerHTML = '';
+  renderRouteCard(null);
+  renderIcePanel(null);
+  document.getElementById('btn-run-landing').disabled = false;
+  document.getElementById('landing-hint').textContent = 'Ready — uses this DEM and crater list.';
+  document.getElementById('landing-status-pill').style.display = 'none';
+  document.getElementById('rover-status-pill').style.display = 'none';
+  document.getElementById('ice-status-pill').style.display = 'none';
+  document.getElementById('btn-run-ice').disabled = false;   // PSR done → ice enabled
+  document.getElementById('ice-hint').textContent = 'Ready — uses doubly-shadowed pixels from this run.';
+  // Reset rover dropdowns
+  document.getElementById('p-rover-start').innerHTML = '<option value="">— run landing analysis first —</option>';
+  document.getElementById('p-rover-start').disabled = true;
+  document.getElementById('p-rover-goal').innerHTML = '<option value="">— run detection first —</option>';
+  document.getElementById('p-rover-goal').disabled = true;
+  document.getElementById('btn-run-rover').disabled = true;
+  document.getElementById('rover-hint').textContent = 'Run Steps 1–3 first, then select start and goal.';
+  renderLandingList(null);
+  document.getElementById('tab-landing-count').textContent = '';
+}
+
+// ── Run button ────────────────────────────────────────────────────────────────
+document.getElementById('btn-run').addEventListener('click', async () => {
+  const pill = document.getElementById('status-pill');
+  const bar  = document.getElementById('progress-bar');
+  document.getElementById('btn-run').disabled = true;
+  pill.className = 'running'; pill.textContent = 'QUEUING…';
+  bar.style.width = '0%';
+  hideCrosshair();
+  selectedCrater = null;
+
+  const payload = {
+    grid_size:     parseInt(document.getElementById('p-grid').value),
+    pixel_size_m:  parseFloat(document.getElementById('p-pixel').value),
+    sun_elevation_deg: parseFloat(document.getElementById('p-sun').value),
+    n_azimuths:    parseInt(document.getElementById('p-az').value),
+    secondary_search_radius_m: parseFloat(document.getElementById('p-search').value),
+    dem_source: 'synthetic',
+  };
+
+  try {
+    const res = await fetch(`${API}/api/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new Error(errBody?.detail ? JSON.stringify(errBody.detail) : `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    currentJobId = data.job_id;
+    pill.className = 'running'; pill.textContent = 'RUNNING 0%';
+    await pollJob(currentJobId);
+  } catch (e) {
+    pill.className = 'error'; pill.textContent = 'REQUEST REJECTED';
+    pill.title = e.message || 'Invalid parameters — check values in the rail.';
+    console.error(e);
+    document.getElementById('btn-run').disabled = false;
+  }
+});
+
+// ── Landing-site poll loop ─────────────────────────────────────────────────────
+async function pollLandingJob(jobId) {
+  const pill = document.getElementById('landing-status-pill');
+  pill.style.display = 'inline-block';
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 500));
+    let st;
+    try {
+      const res = await fetch(`${API}/api/landing/${jobId}/status`);
+      st = await res.json();
+    } catch {
+      pill.textContent = 'LANDING: UNREACHABLE';
+      pill.className = 'error';
+      document.getElementById('btn-run-landing').disabled = false;
+      document.getElementById('landing-hint').textContent = 'Failed — check server connection.';
+      return;
+    }
+
+    pill.textContent = 'LANDING ' + st.landing_status.toUpperCase() + ' ' + (st.landing_progress||0) + '%';
+    pill.className = st.landing_status === 'running' ? 'running' : '';
+
+    if (st.landing_status === 'complete') {
+      pill.className = 'complete';
+      pill.textContent = 'LANDING COMPLETE';
+      await loadLandingResult(jobId);
+      return;
+    }
+    if (st.landing_status === 'error') {
+      pill.className = 'error';
+      pill.textContent = 'LANDING ERROR';
+      console.error('Landing job error:', st.landing_error);
+      document.getElementById('btn-run-landing').disabled = false;
+      document.getElementById('landing-hint').textContent =
+        'Failed: ' + (st.landing_error || 'unknown error — check server log.');
+      return;
+    }
+  }
+}
+
+async function loadLandingResult(jobId) {
+  const pixelSizeM = parseFloat(document.getElementById('p-pixel').value);
+
+  // Load the four new layer PNGs
+  const layers = [
+    { id: 'ohrc',            canvas: document.getElementById('canvas-ohrc') },
+    { id: 'slope',           canvas: document.getElementById('canvas-slope') },
+    { id: 'boulder_density', canvas: document.getElementById('canvas-boulder') },
+    { id: 'safety_score',    canvas: document.getElementById('canvas-safety') },
+    { id: 'hard_unsafe',     canvas: document.getElementById('canvas-redflag') },
+  ];
+  await Promise.all(layers.map(l =>
+    loadLayerImage(l.canvas, `${API}/api/landing/${jobId}/layer/${l.id}.png?t=${Date.now()}`)
+  ));
+  updateCanvasVisibility();
+
+  const res = await fetch(`${API}/api/landing/${jobId}/result`);
+  landingResult = await res.json();
+
+  drawLandingSites(landingResult.landing_sites, _displaySize, gridSize, pixelSizeM);
+  renderLandingList(landingResult.landing_sites, pixelSizeM);
+  document.getElementById('tab-landing-count').textContent = landingResult.landing_sites?.length ? ` (${landingResult.landing_sites.length})` : '';
+  switchRightTab('landing');
+
+  // Populate Step 4 dropdowns
+  populateRoverDropdowns(landingResult.landing_sites, currentResult?.craters);
+
+  // Reset stale rover path state
+  roverResult = null;
+  document.getElementById('rover-svg').innerHTML = '';
+  renderRouteCard(null);
+  document.getElementById('rover-status-pill').style.display = 'none';
+
+  document.getElementById('stat-safe').innerHTML = landingResult.pct_terrain_safe.toFixed(1) + '<span class="unit">%</span>';
+  document.getElementById('stat-redflag').innerHTML = landingResult.pct_slope_redflag.toFixed(1) + '<span class="unit">%</span>';
+  document.getElementById('stat-boulders').textContent = landingResult.boulder_count;
+  document.getElementById('stat-t-landing').innerHTML = landingResult.landing_elapsed_s.toFixed(2) + '<span class="unit">s</span>';
+
+  document.getElementById('btn-run-landing').disabled = false;
+}
+
+// ── Find Landing Sites button ──────────────────────────────────────────────────
+document.getElementById('btn-run-landing').addEventListener('click', async () => {
+  if (!currentJobId) return;
+  const btn = document.getElementById('btn-run-landing');
+  btn.disabled = true;
+  document.getElementById('landing-hint').textContent = 'Running slope + boulder + scoring pipeline…';
+  hideCrosshair();
+  selectedLandingSite = null;
+
+  const payload = {
+    slope_redline_deg:   parseFloat(document.getElementById('p-slope-redline').value),
+    slope_caution_deg:   parseFloat(document.getElementById('p-slope-caution').value),
+    boulder_redline:     parseFloat(document.getElementById('p-boulder-redline').value),
+    ellipse_semi_major_m: parseFloat(document.getElementById('p-ellipse-a').value),
+    ellipse_semi_minor_m: parseFloat(document.getElementById('p-ellipse-b').value),
+    top_k_sites: 5,
+  };
+
+  try {
+    const res = await fetch(`${API}/api/landing/${currentJobId}/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new Error(errBody?.detail ? JSON.stringify(errBody.detail) : `HTTP ${res.status}`);
+    }
+    await pollLandingJob(currentJobId);
+    document.getElementById('landing-hint').textContent = 'Done — see Landing tab and new layers.';
+  } catch (e) {
+    console.error(e);
+    document.getElementById('landing-hint').textContent = 'Failed: ' + (e.message || 'check server connection.');
+    btn.disabled = false;
+  }
+});
+
+// ── Rover-path poll loop ──────────────────────────────────────────────────────
+async function pollRoverJob(jobId) {
+  const pill = document.getElementById('rover-status-pill');
+  pill.style.display = 'inline-block';
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 400));
+    let st;
+    try {
+      const res = await fetch(`${API}/api/rover/${jobId}/status`);
+      st = await res.json();
+    } catch {
+      pill.textContent = 'ROVER: UNREACHABLE';
+      pill.className = 'error';
+      document.getElementById('btn-run-rover').disabled = false;
+      document.getElementById('rover-hint').textContent = 'Lost connection mid-run — check server.';
+      return;
+    }
+
+    pill.textContent = 'ROVER ' + st.rover_status.toUpperCase() + ' ' + (st.rover_progress||0) + '%';
+    pill.className = st.rover_status === 'running' ? 'running' : '';
+
+    if (st.rover_status === 'complete') {
+      pill.className = 'complete';
+      pill.textContent = 'ROVER COMPLETE';
+      await loadRoverResult(jobId);
+      return;
+    }
+    if (st.rover_status === 'error') {
+      pill.className = 'error';
+      pill.textContent = 'ROVER ERROR';
+      console.error('Rover job error:', st.rover_error);
+      document.getElementById('btn-run-rover').disabled = false;
+      document.getElementById('rover-hint').textContent =
+        'Failed: ' + (st.rover_error || 'unknown error — check server log.');
+      return;
+    }
+  }
+}
+
+async function loadRoverResult(jobId) {
+  const res = await fetch(`${API}/api/rover/${jobId}/result`);
+  roverResult = await res.json();
+
+  drawRoverPath(roverResult, _displaySize, gridSize);
+  renderRouteCard(roverResult);
+  switchRightTab('route');
+
+  document.getElementById('btn-run-rover').disabled = false;
+  document.getElementById('rover-hint').textContent =
+    roverResult.path_found
+      ? `Path: ${(roverResult.total_distance_m / 1000).toFixed(2)} km, max slope ${roverResult.max_slope_deg.toFixed(1)}°`
+      : 'No path — ' + (roverResult.diagnosis?.reason || 'check terrain.');
+}
+
+// ── Plan Rover Path button ────────────────────────────────────────────────────
+document.getElementById('btn-run-rover').addEventListener('click', async () => {
+  if (!currentJobId) return;
+  const startVal = document.getElementById('p-rover-start').value;
+  const goalVal  = document.getElementById('p-rover-goal').value;
+  if (!startVal || !goalVal) {
+    document.getElementById('rover-hint').textContent = 'Select both a landing site and a crater goal.';
+    return;
+  }
+
+  const start = JSON.parse(startVal);
+  const goal  = JSON.parse(goalVal);
+
+  const btn = document.getElementById('btn-run-rover');
+  btn.disabled = true;
+  document.getElementById('rover-hint').textContent = 'Running A* pathfinder…';
+  document.getElementById('rover-svg').innerHTML = '';
+  renderRouteCard(null);
+
+  const payload = {
+    start_row: start.row,
+    start_col: start.col,
+    goal_row: goal.row,
+    goal_col: goal.col,
+    slope_caution_deg: parseFloat(document.getElementById('p-slope-caution').value),
+    slope_redline_deg: parseFloat(document.getElementById('p-slope-redline').value),
+  };
+
+  try {
+    const res = await fetch(`${API}/api/rover/${currentJobId}/plan`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new Error(errBody?.detail ? JSON.stringify(errBody.detail) : `HTTP ${res.status}`);
+    }
+    await pollRoverJob(currentJobId);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('rover-hint').textContent = 'Failed: ' + (e.message || 'check server connection.');
+    btn.disabled = false;
+  }
+});
+
+// ── Ice volume poll loop ──────────────────────────────────────────────────────
+async function pollIceJob(jobId) {
+  const pill = document.getElementById('ice-status-pill');
+  pill.style.display = 'inline-block';
+
+  while (true) {
+    await new Promise(r => setTimeout(r, 400));
+    let st;
+    try {
+      const res = await fetch(`${API}/api/ice/${jobId}/status`);
+      st = await res.json();
+    } catch {
+      pill.textContent = 'ICE: UNREACHABLE';
+      pill.className = 'error';
+      document.getElementById('btn-run-ice').disabled = false;
+      document.getElementById('ice-hint').textContent = 'Lost connection mid-run — check server.';
+      return;
+    }
+
+    pill.textContent = 'ICE ' + st.ice_status.toUpperCase() + ' ' + (st.ice_progress||0) + '%';
+    pill.className = st.ice_status === 'running' ? 'running' : '';
+
+    if (st.ice_status === 'complete') {
+      pill.className = 'complete';
+      pill.textContent = 'ICE COMPLETE';
+      await loadIceResult(jobId);
+      return;
+    }
+    if (st.ice_status === 'error') {
+      pill.className = 'error';
+      pill.textContent = 'ICE ERROR';
+      console.error('Ice job error:', st.ice_error);
+      document.getElementById('btn-run-ice').disabled = false;
+      document.getElementById('ice-hint').textContent =
+        'Failed: ' + (st.ice_error || 'unknown error — check server log.');
+      return;
+    }
+  }
+}
+
+async function loadIceResult(jobId) {
+  // Fetch JSON result
+  const res = await fetch(`${API}/api/ice/${jobId}/result`);
+  iceResult = await res.json();
+
+  // Load the ice concentration layer PNG
+  const iceCanvas = document.getElementById('canvas-ice-conc');
+  if (iceCanvas) {
+    await loadLayerImage(iceCanvas, `${API}/api/ice/${jobId}/layer/ice_conc.png?t=${Date.now()}`);
+    // Enable the layer and make it visible
+    const layer = LAYERS.find(l => l.id === 'ice_conc');
+    if (layer) { layer.visible = true; buildLayerControls(); updateCanvasVisibility(); }
+  }
+
+  renderIcePanel(iceResult);
+  switchRightTab('ice');
+
+  document.getElementById('btn-run-ice').disabled = false;
+  document.getElementById('ice-hint').textContent =
+    `Median: ${iceResult.total_vol_km3_p50.toFixed(6)} km³ · area: ${iceResult.total_area_km2.toFixed(4)} km²`;
+}
+
+// ── Estimate Ice Volume button ────────────────────────────────────────────────
+document.getElementById('btn-run-ice').addEventListener('click', async () => {
+  if (!currentJobId) return;
+  const btn = document.getElementById('btn-run-ice');
+  btn.disabled = true;
+  document.getElementById('ice-hint').textContent = 'Running Monte-Carlo volume estimation…';
+  renderIcePanel(null);
+
+  const payload = {
+    radar_depth_m: parseFloat(document.getElementById('p-radar-depth').value),
+    depth_sigma_m: parseFloat(document.getElementById('p-depth-sigma').value),
+    conc_min:      parseFloat(document.getElementById('p-conc-min').value)  / 100,
+    conc_max:      parseFloat(document.getElementById('p-conc-max').value)  / 100,
+    conc_sigma:    parseFloat(document.getElementById('p-conc-sigma').value) / 100,
+    n_mc:          5000,
+  };
+
+  try {
+    const res = await fetch(`${API}/api/ice/${currentJobId}/estimate`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null);
+      throw new Error(errBody?.detail ? JSON.stringify(errBody.detail) : `HTTP ${res.status}`);
+    }
+    await pollIceJob(currentJobId);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('ice-hint').textContent = 'Failed: ' + (e.message || 'check server connection.');
+    btn.disabled = false;
+  }
+});
+
+// ── Mouse hover on map ────────────────────────────────────────────────────────
+document.getElementById('map-area').addEventListener('mousemove', (e) => {
+  const stack = document.getElementById('canvas-stack');
+  if (!gridSize) return;
+  const rect = stack.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return;
+  const px = Math.round(x / rect.width * gridSize);
+  const py = Math.round(y / rect.height * gridSize);
+  document.getElementById('cursor-pos').textContent = `pixel (${py}, ${px})`;
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildLayerControls();
+updateCanvasVisibility();
+</script>
+</body>
+</html>
